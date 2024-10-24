@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Probability of Fire Accident Prediction in Dhaka City Corporation</title>
+    <style>
+        /* Basic Styling */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background-color: white;
+            padding: 20px 40px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+
+        form {
+            margin-top: 20px;
+        }
+
+        label {
+            display: block;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        input[type="submit"] {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-top: 20px;
+            padding: 10px;
+            font-size: 16px;
+        }
+
+        input[type="submit"]:hover {
+            background-color: #45a049;
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #fafafa;
+        }
+
+        .result p {
+            margin: 0;
+            font-size: 16px;
+        }
+    </style>
+    <script>
+        // Function to load model based on location
+        async function loadModel(location) {
+            try {
+                const response = await fetch(`${location}.json`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return await response.json();
+            } catch (error) {
+                throw new Error(`Failed to fetch JSON file for ${location}: ${error.message}`);
+            }
+        }
+
+        // Recursive function to traverse a single decision tree
+        function traverseTree(tree, features) {
+            if (tree.value) {
+                return tree.value[0][0] > tree.value[0][1] ? 0 : 1;
+            }
+            if (features[tree.feature] <= tree.threshold) {
+                return traverseTree(tree.left, features);
+            } else {
+                return traverseTree(tree.right, features);
+            }
+        }
+
+        // Function to make a prediction using all trees in the Random Forest
+        function predictUsingForest(forest, features) {
+            let votes = [0, 0];
+            forest.trees.forEach(tree => {
+                const prediction = traverseTree(tree, features);
+                votes[prediction]++;
+            });
+
+            // Calculate probability of fire accident
+            const totalVotes = votes[0] + votes[1];
+            const fireProbability = (votes[1] / totalVotes) * 100;
+
+            return {
+                prediction: votes[0] > votes[1] ? 0 : 1,
+                probability: fireProbability.toFixed(2)  // Round to 2 decimal places
+            };
+        }
+
+        // Function to handle form submission and display the result
+        async function onSubmitForm() {
+            const temperature = parseFloat(document.getElementById('temperature').value);
+            const humidity = parseFloat(document.getElementById('humidity').value);
+            const precip = parseFloat(document.getElementById('precip').value);
+            const wind = parseFloat(document.getElementById('wind').value);
+            const location = document.getElementById('location').value;  // Get selected location
+            const date = document.getElementById('date').value;  // Optional date input
+
+            const features = {
+                temperature: temperature,
+                humidity: humidity,
+                precip: precip,
+                wind: wind
+            };
+
+            try {
+                // Load the model parameters for the selected location
+                const modelParams = await loadModel(location);
+
+                // Make a prediction using the Random Forest model
+                const result = predictUsingForest(modelParams, features);
+
+                // Display the prediction result
+                document.getElementById('result').innerHTML = `
+                    <p><strong>Location:</strong> ${location}</p>
+                    <p><strong>Date:</strong> ${date}</p>
+                    <p><strong>Prediction:</strong> ${result.prediction === 1 ? 'Fire Accident' : 'No Fire Accident'}</p>
+                    <p><strong>Probability of Fire Accident:</strong> ${result.probability}%</p>
+                `;
+            } catch (error) {
+                console.error("Error:", error);
+                document.getElementById('result').innerText = 
+                    `Error fetching model for ${location}: ${error.message}`;
+            }
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>Probability of Fire Accident Prediction in Dhaka City Corporation</h1>
+        <form onsubmit="onSubmitForm(); return false;">
+            <label for="location">Select Location:</label>
+            <select id="location" required>
+                <option value="Demra">Demra</option>
+                <option value="Hazaribagh">Hazaribagh</option>
+                <option value="Jatrabari">Jatrabari</option>
+                <option value="Kilgoan">Kilgoan</option>
+                <option value="Lalbagh">Lalbagh</option>
+                <option value="Motijheel">Motijheel</option>
+                <option value="Ramna">Ramna</option>
+                <option value="Sadarghat">Sadarghat</option>
+            </select><br><br>
+
+            <label for="temperature">Temperature (°C):</label>
+            <input type="number" id="temperature" step="0.1" required><br><br>
+            
+            <label for="humidity">Humidity (%):</label>
+            <input type="number" id="humidity" step="0.1" required><br><br>
+            
+            <label for="precip">Precipitation (mm):</label>
+            <input type="number" id="precip" step="0.1" required><br><br>
+            
+            <label for="wind">Wind Speed (m/s):</label>
+            <input type="number" id="wind" step="0.1" required><br><br>
+
+            <label for="date">Date:</label>
+            <input type="date" id="date"><br><br>
+
+            <input type="submit" value="Predict">
+        </form>
+        <div class="result" id="result">Prediction result will appear here.</div>
+    </div>
+</body>
+</html>
